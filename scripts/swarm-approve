@@ -161,19 +161,19 @@ function approve() {
     
     if [ "$OBLITERATE" = "yes" ]
     then
-        curl -s -u $ticket -X DELETE $url/api/v10/reviews/$review > /dev/null
+        curl -s -u $ticket -X DELETE $url/api/v11/reviews/$review > /dev/null
         [ $VERBOSITY -ge 2 ] && echo -n " - OBLITERATED"
     fi
     
     if [ ! -z "$VOTE" ]
     then
-        curl -s -u $ticket -X POST -H "Content-Type: application/json" -d "{\"vote\":\"$VOTE\"}" $url/api/v10/reviews/$review/vote > /dev/null
+        curl -s -u $ticket -X POST -H "Content-Type: application/json" -d "{\"vote\":\"$VOTE\"}" $url/api/v11/reviews/$review/vote > /dev/null
         [ $VERBOSITY -ge 2 ] && echo -n " - $VOTE"
     fi
 
     if [ ! -z "$TRANSITION" ]
     then
-        curl -s -u $ticket -X POST -H "Content-Type: application/json" -d "{\"transition\": \"$TRANSITION\" }"  $url/api/v10/reviews/$review/transition > /dev/null
+        curl -s -u $ticket -X POST -H "Content-Type: application/json" -d "{\"transition\": \"$TRANSITION\" }"  $url/api/v11/reviews/$review/transition > /dev/null
         [ $VERBOSITY -ge 2 ] && echo -n " - ${TRANSITION^}"
     fi
     COUNT=$((COUNT + 1))

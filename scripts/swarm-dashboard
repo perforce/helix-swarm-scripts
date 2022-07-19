@@ -97,19 +97,19 @@ ticket="$P4USER:$(p4ticket)"
 
 if [ $COUNT -eq 1 ]
 then
-    curl -s -u "$ticket" $url/api/v10/reviews/dashboard | jq '.data.totalCount'
+    curl -s -u "$ticket" $url/api/v11/reviews/dashboard | jq '.data.totalCount'
 elif [ $JSON -eq 1 ]
 then
-    curl -s -u "$ticket" $url/api/v10/reviews/dashboard
+    curl -s -u "$ticket" $url/api/v11/reviews/dashboard
     echo
 elif [ "$VERBOSE" -eq 1 ]
 then
-    curl -s -u "$ticket" $url/api/v10/reviews/dashboard | jq '.data.reviews[] | "\(.id) \(.author) \(.state)"' | sed 's/"//g'
+    curl -s -u "$ticket" $url/api/v11/reviews/dashboard | jq '.data.reviews[] | "\(.id) \(.author) \(.state)"' | sed 's/"//g'
 elif  [ "$QUIET" -eq 1 ]
 then
-    curl -s -u "$ticket" $url/api/v10/reviews/dashboard > /dev/null
+    curl -s -u "$ticket" $url/api/v11/reviews/dashboard > /dev/null
 else
-    curl -s -u "$ticket" $url/api/v10/reviews/dashboard | jq '.data.reviews[].id'
+    curl -s -u "$ticket" $url/api/v11/reviews/dashboard | jq '.data.reviews[].id'
 fi
 
 exit 0
