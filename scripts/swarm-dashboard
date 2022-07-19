@@ -1,0 +1,115 @@
+#!/bin/bash
+#
+# Get list of reviews from the dashboard.
+#
+# By default, uses the existing environment for credentials. So creating a .p4config
+# file with all the settings is the easiest way to use this.
+#
+# If P4USER or P4PORT is set in the environment, then these will be used in preference.
+# If -u or -p is passed, then these are used instead.
+#
+
+if [ -x perforce-utils ]
+then
+    . ./perforce-utils
+elif [ -x $(dirname $0)/perforce-utils ]
+then
+    . $(dirname $0)/perforce-utils
+elif [ -x /usr/local/bin/perforce-utils ]
+then
+    . ./usr/local/bin/perforce-utils
+else
+    echo "Unable to find perforce-utils file"
+    exit 2
+fi
+
+
+
+JSON=0
+COUNT=0
+VERBOSE=0
+QUIET=0
+
+function usage() {
+    echo "Usage: swarm-dashboard [<options>]"
+    echo ""
+    echo "Returns a list of the review ids in the user's dashboard"
+    echo "Reads P4USER from the environment if a user isn't passed"
+    echo ""
+    echo "  -u <userid>  User to get the dashboard for"
+    echo "  -p <p4port>  P4PORT value to use"
+    echo "  -P <pw>      Password to use"
+    echo "  -j           Return raw json for the review data"
+    echo "  -c           Only return a count of the number of reviews"
+    echo "  -q           Don't output anything. Only useful for timing"
+    echo "  -h           This message"
+}
+
+
+while getopts "u:p:jqchvP:" opt
+do
+    case $opt in
+        h)
+            usage
+            exit 0
+            ;;
+        u)
+            P4USER=$OPTARG
+            ;;
+        p)
+            P4PORT=$OPTARG
+            ;;
+        P)
+            PASSWD=$OPTARG
+            ;;
+        j)
+            JSON=1
+            ;;
+        c)
+            COUNT=1
+            ;;
+        v)
+            VERBOSE=1
+            ;;
+        q)
+            QUIET=1
+            ;;
+        :)
+            echo "Missing an argument"
+            ;;
+        \?)
+            echo "I don't know \"-$OPTARG\""
+            usage
+            exit 1
+            ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+P4="p4 -p $P4PORT -u $P4USER"
+
+# Login
+p4login
+url=$($P4 property -l -n P4.Swarm.URL | sed 's/.* = //')
+
+# Generate a ticket
+ticket="$P4USER:$(p4ticket)"
+
+if [ $COUNT -eq 1 ]
+then
+    curl -s -u "$ticket" $url/api/v10/reviews/dashboard | jq '.data.totalCount'
+elif [ $JSON -eq 1 ]
+then
+    curl -s -u "$ticket" $url/api/v10/reviews/dashboard
+    echo
+elif [ "$VERBOSE" -eq 1 ]
+then
+    curl -s -u "$ticket" $url/api/v10/reviews/dashboard | jq '.data.reviews[] | "\(.id) \(.author) \(.state)"' | sed 's/"//g'
+elif  [ "$QUIET" -eq 1 ]
+then
+    curl -s -u "$ticket" $url/api/v10/reviews/dashboard > /dev/null
+else
+    curl -s -u "$ticket" $url/api/v10/reviews/dashboard | jq '.data.reviews[].id'
+fi
+
+exit 0

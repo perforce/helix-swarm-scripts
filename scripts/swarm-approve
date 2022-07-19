@@ -1,0 +1,203 @@
+#!/bin/bash
+#
+# Approve a review.
+#
+
+if [ -x perforce-utils ]
+then
+    . ./perforce-utils
+elif [ -x $(dirname $0)/perforce-utils ]
+then
+    . $(dirname $0)/perforce-utils
+elif [ -x /usr/local/bin/perforce-utils ]
+then
+    . ./usr/local/bin/perforce-utils
+else
+    echo "Unable to find perforce-utils file"
+    exit 2
+fi
+
+
+function usage() {
+    echo "Usage: swarm-approve [<options>] <reviewId>"
+    echo ""
+    echo "Approves the given review."
+    echo "Reads P4USER from the environment if a user isn't passed"
+    echo ""
+    echo "  -u <userid>  User to get the dashboard for"
+    echo "  -p <p4port>  P4PORT to use"
+    echo "  -P <pw>      Password to use"
+    echo "  -c <chance>  Percentage change of approving the review"
+    echo "  -q           Quiet, suppress normal output"
+    echo "  -v           Verbose, output information for humans"
+    echo "  -i           Read list of reviews as input rather than argument"
+    echo "  -I           Incrementing chance"
+    echo "  -n           Don't approve review"
+    echo "  -x           Reject the review"
+    echo "  -a           Archive the review"
+    echo "  -O yes       OBLITERATE the review"
+    echo "  -U           Vote the review up"
+    echo "  -D           Vote the review down"
+    echo "  -h           This message"
+}
+
+CHANCE=100
+VERBOSITY=1
+INPUT=0
+TRANSITION="approved"
+VOTE=""
+INCREMENT=0
+OBLITERATE=""
+
+while getopts ":u:p:P:c:O:hqvixanUDI" opt
+do
+    case $opt in
+        h)
+            usage
+            exit 0
+            ;;
+        u)
+            P4USER==$OPTARG
+            ;;
+        p)
+            P4PORT=$OPTARG
+            ;;
+        P)
+            PASSWD=$OPTARG
+            ;;
+        c)
+            CHANCE=$OPTARG
+            ;;
+        q)
+            VERBOSITY=0
+            ;;
+        v)
+            VERBOSITY=2
+            ;;
+        i)
+            INPUT=1
+            ;;
+        I)
+            INCREMENT=1
+            ;;
+        U)
+            VOTE="up"
+            ;;
+        D)
+            VOTE="down"
+            ;;
+        n)
+            TRANSITION=""
+            ;;
+        x) 
+            TRANSITION="rejected"
+            ;;
+        a) 
+            TRANSITION="archived"
+            ;;
+        O)
+            OBLITERATE=$OPTARG
+            ;;
+        :)
+            echo "Missing an argument"
+            ;;
+        \?)
+            echo "I don't know \"-$OPTARG\""
+            usage
+            exit 1
+            ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+P4="p4 -p $P4PORT -u $P4USER"
+
+if [ ! -z $OBLITERATE ]
+then
+    if [ ! -z $TRANSITION ]
+    then
+        echo "Cannot transition a review and obliterate it at the same time"
+        exit 1
+    fi
+    if [ ! -z $VOTE ]
+    then
+        echo "Cannot vote a review and obliterate it at the same time"
+        exit 1
+    fi
+    if [ "$OBLITERATE" != "yes" ]
+    then
+        echo "If the obliterate option is taken, it must have a parameter of \"yes\""
+        exit 1
+    fi
+fi
+
+#Login
+p4login
+url=$($P4 property -l -n P4.Swarm.URL | sed 's/.* = //')
+
+# Generate a ticket
+ticket="$P4USER:$(p4ticket)"
+
+
+NUMBER=0
+COUNT=0
+
+function approve() {
+    id=$1
+    
+    NUMBER=$((NUMBER + 1))
+    
+    [ $VERBOSITY -ge 2 ] && echo -n "Checking $id"
+    
+    if [ $((RANDOM % 100)) -gt $CHANCE ]
+    then
+        [ $VERBOSITY -ge 2 ] && echo ""
+        return
+    fi
+    if [ $INCREMENT -eq 1 -a $CHANCE -lt 100 ]
+    then
+        CHANCE=$((CHANCE + 1))
+    fi
+    
+    if [ "$OBLITERATE" = "yes" ]
+    then
+        curl -s -u $ticket -X DELETE $url/api/v10/reviews/$review > /dev/null
+        [ $VERBOSITY -ge 2 ] && echo -n " - OBLITERATED"
+    fi
+    
+    if [ ! -z "$VOTE" ]
+    then
+        curl -s -u $ticket -X POST -H "Content-Type: application/json" -d "{\"vote\":\"$VOTE\"}" $url/api/v10/reviews/$review/vote > /dev/null
+        [ $VERBOSITY -ge 2 ] && echo -n " - $VOTE"
+    fi
+
+    if [ ! -z "$TRANSITION" ]
+    then
+        curl -s -u $ticket -X POST -H "Content-Type: application/json" -d "{\"transition\": \"$TRANSITION\" }"  $url/api/v10/reviews/$review/transition > /dev/null
+        [ $VERBOSITY -ge 2 ] && echo -n " - ${TRANSITION^}"
+    fi
+    COUNT=$((COUNT + 1))
+
+    [ $VERBOSITY -eq 1 ] && echo "$id"
+    [ $VERBOSITY -ge 2 ] && echo " ($COUNT / $NUMBER)"
+}
+
+
+if [ $INPUT -eq 0 ]
+then
+    review=$1
+    if [ -z $review ]
+    then
+        echo "No review id specified"
+        exit 1
+    fi
+    approve $review
+else
+    while read review
+    do
+        approve $review
+    done
+fi
+[ $VERBOSITY -ge 2 ] && echo "${TRANSITION^} $COUNT of $NUMBER reviews"
+
+exit 0

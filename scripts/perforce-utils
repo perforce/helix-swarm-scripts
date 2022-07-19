@@ -1,0 +1,94 @@
+#!/bin/bash
+#
+# Bash utilities for common Perforce scripting tasks
+#
+# Checks for, and uses, the $P4 variable rather than using p4 directly.
+# This can be set to "p4 -u myuser -p myport" to allow the normal environment
+# to be overridden.
+#
+
+function p4user() {
+    if [ -z "$P4" ]
+    then
+        P4="p4"
+    fi
+    $P4 -ztag info | grep userName | cut -d " " -f 3
+}
+
+function p4port() {
+    if [ -z "$P4" ]
+    then
+        P4="p4"
+    fi
+    $P4 -vrpc=3 info | grep "RpcSendBuffer port" | cut -d " " -f 4
+}
+
+
+function p4login() {
+    if [ -z "$P4" ]
+    then
+        P4="p4"
+    fi
+    # Are we already logged in?
+    $P4 login -s >/dev/null 2> /dev/null && return 0
+
+    if [ ! -z "$PASSWD" ]
+    then
+        echo $PASSWD | $P4 login
+    elif [ -f ~/.p4passwd ]
+    then
+        base64 -d ~/.p4passwd | p4 login
+    else
+        $P4 login
+    fi
+}
+
+function session() {
+    echo "{ \"username\": \"$1\", \"password\": \"$2\", \"remember\": false }"
+}
+
+
+#SESSION=$(session vernon.renno Passw0rd)
+
+#echo $SESSION
+
+#
+# Find what the current user and server is, then grab out the ticket.
+# This requires a rather convoluted approach.
+#
+function p4ticket() {
+    if [ -z "$P4" ]
+    then
+        P4="p4"
+    fi
+    $P4 login -s >/dev/null 2> /dev/null || return
+
+    local user=$($P4 info | grep "User name:" | sed 's/.* //g')
+    local port=$($P4 -vrpc=3 changes -m1 | grep serverAddress | cut -d ' ' -f 4)
+    if [[ "$port" != *:* ]]; then
+        port=localhost:$port
+    fi
+    $P4 tickets | grep "$port ($user)" | cut -d " " -f 3
+}
+
+
+if [ -z "$P4USER" ]
+then
+    P4USER=$(p4user)
+fi
+
+if [ -z "$P4PORT" ]
+then
+    P4PORT=$(p4port)
+fi
+
+# Insecure password policy for test systems.
+if [ -z "$PASSWD" ] && [ -f ~/.p4passwd ]
+then
+    PASSWD=$(base64 -d < ~/.p4passwd)
+fi
+
+
+
+
+
