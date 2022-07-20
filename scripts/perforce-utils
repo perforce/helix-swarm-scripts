@@ -7,6 +7,11 @@
 # to be overridden.
 #
 
+function die() {
+    echo $* 1>&2
+    exit 1
+}
+
 function p4user() {
     if [ -z "$P4" ]
     then
@@ -30,17 +35,14 @@ function p4login() {
         P4="p4"
     fi
     # Are we already logged in?
-    $P4 login -s >/dev/null 2> /dev/null && return 0
+    $P4 login -s >/dev/null 2>/dev/null && return 0
 
     if [ ! -z "$PASSWD" ]
     then
-        echo $PASSWD | $P4 login
-    elif [ -f ~/.p4passwd ]
-    then
-        base64 -d ~/.p4passwd | p4 login
-    else
-        $P4 login
+        echo $PASSWD | $P4 login >/dev/null 2>/dev/null || return 1
+        return 0
     fi
+    return 1
 }
 
 function session() {
@@ -83,12 +85,19 @@ then
 fi
 
 # Insecure password policy for test systems.
-if [ -z "$PASSWD" ] && [ -f ~/.p4passwd ]
+if [ -z "$PASSWD" ]
 then
-    PASSWD=$(base64 -d < ~/.p4passwd)
+    dir=$PWD/.
+    while [ "$dir" != "/" ]
+    do
+        dir=$(dirname $dir)
+        if [ -r "$dir/.p4passwd" ]
+        then
+            PASSWD=$(base64 -d < "$dir/.p4passwd")
+            break
+        fi
+    done
 fi
-
-
 
 
 

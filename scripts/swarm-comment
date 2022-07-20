@@ -1,0 +1,126 @@
+#!/bin/bash
+#
+# Add a comment to a review.
+#
+
+if [ -x perforce-utils ]
+then
+    . ./perforce-utils
+elif [ -x $(dirname $0)/perforce-utils ]
+then
+    . $(dirname $0)/perforce-utils
+elif [ -x /usr/local/bin/perforce-utils ]
+then
+    . ./usr/local/bin/perforce-utils
+else
+    echo "Unable to find perforce-utils file"
+    exit 2
+fi
+
+
+filename=""
+left=""
+right=""
+version=""
+
+while getopts "f:l:r:v:" opt
+do
+    case $opt in
+        f)
+            filename=$OPTARG
+            ;;
+        l)
+            left=$OPTARG
+            ;;
+        r)
+            right=$OPTARG
+            ;;
+        v)
+            version=$OPTARG
+            ;;
+    esac
+done
+shift $((OPTIND - 1))
+review=$1
+
+text=""
+while read l
+do
+    text="$text $l"
+done
+text=$(echo $text)  # Strip whitespace
+
+
+P4="p4 -p $P4PORT -u $P4USER"
+
+p4login || die "Unable to login"
+url=$($P4 -u $P4USER property -l -n P4.Swarm.URL | sed 's/.* = //')
+ticket="$P4USER:$(p4ticket)"
+
+if [ -z $review ]
+then
+    review=$(curl -s -u $ticket "$url/api/v10/reviews?state=needsReview&max=50" | jq '.data.reviews[].id' | sort -R | head -1)
+    echo "Using review $review"
+fi
+
+
+data="body=$text"
+if [ ! -z "$filename" ]
+then
+    echo filename=$filename
+fi
+if [ -z "$left" ]
+then
+    left="null"
+fi
+if [ -z "$right" ]
+then
+    right="null"
+fi
+if [ ! -z "$version" ]
+then
+    version=$version
+fi
+
+dfile=/tmp/json.$$
+
+echo "{" > $dfile
+echo '  "body": "'$text'"', >> $dfile
+echo '  "context": {' >> $dfile
+if [ ! -z "$filename" ]
+then
+    echo '    "file": "'$filename'"', >> $dfile
+    echo '    "rightLine": '$right',' >> $dfile
+    echo '    "leftLine": null,' >> $dfile
+    echo '    "version": '$version, >> $dfile
+    echo '    "content": null', >> $dfile
+fi
+echo '    "type": "text"' >> $dfile
+echo '  }' >> $dfile
+echo "}" >> $dfile
+
+cat $dfile
+
+curl -s -u $ticket -X POST -d "@$dfile" -H "Content-Type: application/json" "$url/api/v11/comments/reviews/$review"
+echo
+
+rm -f $dfile
+
+exit 0
+
+curl -s -u $ticket -X POST -d "topic=reviews/$review" -d "$data" -d "$filename" -d "$right" -d "$left" -d "$version" $url/api/v9/comments
+echo
+
+
+
+if [ $RANDOM -lt 15000 ]
+then
+    curl -s -u $ticket -X POST -H "Content-Type: application/json" -d '{"vote":"up"}' $url/api/v10/reviews/$review/vote
+elif [ $RANDOM -lt 5000 ]
+then
+    curl -s -u $ticket -X POST -H "Content-Type: application/json" -d '{"vote":"down"}' $url/api/v10/reviews/$review/vote
+fi
+echo
+
+
+exit 0

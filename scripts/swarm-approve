@@ -167,7 +167,7 @@ function approve() {
     
     if [ ! -z "$VOTE" ]
     then
-        curl -s -u $ticket -X POST -H "Content-Type: application/json" -d "{\"vote\":\"$VOTE\"}" $url/api/v11/reviews/$review/vote > /dev/null
+        echo curl -s -u $ticket -X POST -H "Content-Type: application/json" -d "{\"vote\":\"$VOTE\"}" $url/api/v11/reviews/$review/vote #> /dev/null
         [ $VERBOSITY -ge 2 ] && echo -n " - $VOTE"
     fi
 
