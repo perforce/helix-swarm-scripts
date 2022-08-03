@@ -1,3 +1,5 @@
+![Support](https://img.shields.io/badge/Support-Community-yellow.svg)
+
 # helix-swarm-scripts
 
 Some sample/test scripts for Helix Swarm
