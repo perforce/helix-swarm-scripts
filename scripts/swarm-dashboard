@@ -17,7 +17,7 @@ then
     . $(dirname $0)/perforce-utils
 elif [ -x /usr/local/bin/perforce-utils ]
 then
-    . ./usr/local/bin/perforce-utils
+    . /usr/local/bin/perforce-utils
 else
     echo "Unable to find perforce-utils file"
     exit 2
@@ -29,6 +29,7 @@ JSON=0
 COUNT=0
 VERBOSE=0
 QUIET=0
+API=11
 
 function usage() {
     echo "Usage: swarm-dashboard [<options>]"
@@ -42,11 +43,12 @@ function usage() {
     echo "  -j           Return raw json for the review data"
     echo "  -c           Only return a count of the number of reviews"
     echo "  -q           Don't output anything. Only useful for timing"
+    echo "  -9           Use the old API (needed on old Swarm versions)"
     echo "  -h           This message"
 }
 
 
-while getopts "u:p:jqchvP:" opt
+while getopts "9u:p:jqchvP:" opt
 do
     case $opt in
         h)
@@ -74,6 +76,9 @@ do
         q)
             QUIET=1
             ;;
+	9)
+	    API=10
+	    ;;
         :)
             echo "Missing an argument"
             ;;
@@ -97,19 +102,19 @@ ticket="$P4USER:$(p4ticket)"
 
 if [ $COUNT -eq 1 ]
 then
-    curl -s -u "$ticket" $url/api/v11/reviews/dashboard | jq '.data.totalCount'
+    curl -s -u "$ticket" $url/api/v$API/reviews/dashboard | jq '.data.totalCount'
 elif [ $JSON -eq 1 ]
 then
-    curl -s -u "$ticket" $url/api/v11/reviews/dashboard
+    curl -s -u "$ticket" $url/api/v$API/reviews/dashboard
     echo
 elif [ "$VERBOSE" -eq 1 ]
 then
-    curl -s -u "$ticket" $url/api/v11/reviews/dashboard | jq '.data.reviews[] | "\(.id) \(.author) \(.state)"' | sed 's/"//g'
+    curl -s -u "$ticket" $url/api/v$API/reviews/dashboard | jq '.data.reviews[] | "\(.id) \(.author) \(.state)"' | sed 's/"//g'
 elif  [ "$QUIET" -eq 1 ]
 then
-    curl -s -u "$ticket" $url/api/v11/reviews/dashboard > /dev/null
+    curl -s -u "$ticket" $url/api/v$API/reviews/dashboard > /dev/null
 else
-    curl -s -u "$ticket" $url/api/v11/reviews/dashboard | jq '.data.reviews[].id'
+    curl -s -u "$ticket" $url/api/v$API/reviews/dashboard | jq '.data.reviews[].id'
 fi
 
 exit 0
